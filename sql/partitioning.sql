@@ -1,9 +1,8 @@
 USE BigDataProject;
 GO
 
-/* =========================================================
-   0. CLEAN RESET (renditje e saktë)
-   ========================================================= */
+/* CLEAN RESET */
+   
 
 IF OBJECT_ID('FactEconomicData_Partitioned') IS NOT NULL
     DROP TABLE FactEconomicData_Partitioned;
@@ -24,9 +23,7 @@ IF EXISTS (SELECT * FROM sys.partition_functions WHERE name='pf_Category')
     DROP PARTITION FUNCTION pf_Category;
 GO
 
-/* =========================================================
-   1. FILEGROUPS
-   ========================================================= */
+/* 1. FILEGROUPS */
 
 IF NOT EXISTS (SELECT * FROM sys.filegroups WHERE name='FG_2015_2019')
     ALTER DATABASE BigDataProject ADD FILEGROUP FG_2015_2019;
@@ -38,9 +35,7 @@ IF NOT EXISTS (SELECT * FROM sys.filegroups WHERE name='FG_2023')
     ALTER DATABASE BigDataProject ADD FILEGROUP FG_2023;
 GO
 
-/* =========================================================
-   2. FILES (ME CHECK)
-   ========================================================= */
+/*  FILES */
 
 IF NOT EXISTS (SELECT * FROM sys.database_files WHERE name='Data_2015_2019')
 ALTER DATABASE BigDataProject ADD FILE (
@@ -61,9 +56,7 @@ ALTER DATABASE BigDataProject ADD FILE (
 ) TO FILEGROUP FG_2023;
 GO
 
-/* =========================================================
-   3. PARTITION FUNCTION + SCHEME (YEAR)
-   ========================================================= */
+/* PARTITION FUNCTION + SCHEME (YEAR) */
 
 CREATE PARTITION FUNCTION pf_YearRange (SMALLINT)
 AS RANGE RIGHT FOR VALUES (2019, 2022);
@@ -74,9 +67,7 @@ AS PARTITION pf_YearRange
 TO (FG_2015_2019, FG_2020_2022, FG_2023);
 GO
 
-/* =========================================================
-   4. PARTITIONED FACT TABLE (FIXED PK)
-   ========================================================= */
+/* PARTITIONED FACT TABLE (FIXED PK)*/
 
 CREATE TABLE FactEconomicData_Partitioned (
     FactID INT IDENTITY(1,1),
@@ -98,9 +89,7 @@ ON FactEconomicData_Partitioned([Year], FactID)
 ON ps_YearScheme([Year]);
 GO
 
-/* =========================================================
-   5. LOAD DATA
-   ========================================================= */
+/* LOAD DATA */
 
 INSERT INTO FactEconomicData_Partitioned
 (CountryKey, IndicatorKey, TimeKey, [Year], Value)
@@ -109,9 +98,7 @@ FROM FactEconomicData f
 JOIN DimTime dt ON f.TimeKey = dt.TimeKey;
 GO
 
-/* =========================================================
-   6. CATEGORY PARTITION (SIMULATION)
-   ========================================================= */
+/* CATEGORY PARTITION (SIMULATION) */
 
 CREATE PARTITION FUNCTION pf_Category (INT)
 AS RANGE LEFT FOR VALUES (1,2);
@@ -139,4 +126,24 @@ GO
 INSERT INTO Staging_Kaggle_Partitioned
 SELECT Country_Name,[Year],Category,Value
 FROM Staging_Kaggle;
+GO
+
+
+CREATE TABLE FactEconomicData_Partitioned (
+    FactID INT IDENTITY(1,1) NOT NULL,
+    CountryKey INT,
+    IndicatorKey INT,
+    TimeKey INT,
+    [Year] SMALLINT NOT NULL,
+    Value FLOAT,
+    CONSTRAINT PK_FactEconomicData 
+        PRIMARY KEY CLUSTERED ([Year], FactID)   -- VENDOS YEAR I PARI
+) 
+INSERT INTO FactEconomicData_Partitioned
+(CountryKey, IndicatorKey, TimeKey, [Year], Value)
+SELECT f.CountryKey,f.IndicatorKey,f.TimeKey,dt.[Year],f.Value
+FROM FactEconomicData f
+JOIN DimTime dt ON f.TimeKey = dt.TimeKey;
+
+ON ps_YearScheme([Year]);
 GO

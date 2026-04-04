@@ -1,9 +1,7 @@
 USE BigDataProject;
 GO
 
-/* =========================================================
-   1. VERIFY YEAR PARTITIONS
-   ========================================================= */
+/*  VERIFY YEAR PARTITIONS */
 
 SELECT 
     $PARTITION.pf_YearRange([Year]) AS PartitionNumber,
@@ -13,9 +11,7 @@ GROUP BY $PARTITION.pf_YearRange([Year])
 ORDER BY PartitionNumber;
 GO
 
-/* =========================================================
-   2. VERIFY CATEGORY PARTITIONS
-   ========================================================= */
+/* VERIFY CATEGORY PARTITIONS */
 
 SELECT 
     Category,
@@ -26,9 +22,16 @@ GROUP BY Category, $PARTITION.pf_Category(CategoryKey)
 ORDER BY PartitionNumber;
 GO
 
-/* =========================================================
-   3. PERFORMANCE TEST
-   ========================================================= */
+SELECT 
+    Year,
+    $PARTITION.pf_Year(Year) AS PartitionNumber,
+    COUNT(*) AS RowsCount
+FROM Staging_Kaggle_Partitioned
+GROUP BY Year, $PARTITION.pf_Year(Year)
+ORDER BY Year;
+GO
+
+/*  PERFORMANCE TEST */
 
 SET STATISTICS IO ON;
 SET STATISTICS TIME ON;
@@ -46,3 +49,9 @@ SELECT *
 FROM FactEconomicData_Partitioned
 WHERE [Year] = 2023;
 GO
+
+
+
+
+
+
