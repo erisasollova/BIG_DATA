@@ -1,6 +1,9 @@
 USE BigDataProject;
 GO
 
+-- =============================================
+-- DIMENSIONS
+-- =============================================
 CREATE TABLE DimCountry (
     CountryKey INT IDENTITY(1,1) PRIMARY KEY,
     Country_Code NVARCHAR(50) UNIQUE,
@@ -18,6 +21,9 @@ CREATE TABLE DimTime (
     [Year] SMALLINT UNIQUE
 );
 
+-- =============================================
+-- FACT TABLES
+-- =============================================
 CREATE TABLE FactEconomicData (
     FactID INT IDENTITY(1,1) PRIMARY KEY,
     CountryKey INT,

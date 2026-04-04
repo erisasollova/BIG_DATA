@@ -6,6 +6,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    ---------------------------------------------------
+    -- LOAD DIMENSIONS
+    ---------------------------------------------------
     INSERT INTO DimCountry (Country_Code, Country_Name)
     SELECT DISTINCT Country_Code, Country_Name
     FROM Staging_WorldBank s
@@ -30,6 +33,9 @@ BEGIN
         WHERE d.[Year] = s.[Year]
     );
 
+    ---------------------------------------------------
+    -- LOAD FACT ECONOMIC DATA
+    ---------------------------------------------------
     INSERT INTO FactEconomicData (CountryKey, IndicatorKey, TimeKey, Value)
     SELECT
         dc.CountryKey,
@@ -48,6 +54,9 @@ BEGIN
           AND f.TimeKey = dt.TimeKey
     );
 
+    ---------------------------------------------------
+    -- LOAD FACT TREND ANALYSIS
+    ---------------------------------------------------
     INSERT INTO FactTrendAnalysis (CountryKey, TimeKey, AvgValue)
     SELECT
         dc.CountryKey,
@@ -56,7 +65,6 @@ BEGIN
     FROM Staging_WorldBank s
     JOIN DimCountry dc ON s.Country_Code = dc.Country_Code
     JOIN DimTime dt ON s.[Year] = dt.[Year]
-    WHERE s.Value IS NOT NULL
     GROUP BY dc.CountryKey, dt.TimeKey
     HAVING NOT EXISTS (
         SELECT 1
@@ -66,6 +74,3 @@ BEGIN
     );
 END;
 GO
-
-
-EXEC sp_LoadDWH;

@@ -1,0 +1,19 @@
+USE BigDataProject;
+GO
+
+SELECT COUNT(*) AS TotalRows
+FROM Staging_WorldBank;
+
+SELECT COUNT(*) AS FactRows
+FROM FactEconomicData;
+
+SELECT COUNT(*) AS TrendRows
+FROM FactTrendAnalysis;
+
+SELECT TOP 10 * FROM FactTrendAnalysis;
+
+SELECT DB_NAME() AS CurrentDB;
+
+SELECT TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_TYPE = 'BASE TABLE';

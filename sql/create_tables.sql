@@ -1,9 +1,11 @@
+-- =============================================
+-- CREATE DATABASE + STAGING TABLES
+-- =============================================
 CREATE DATABASE BigDataProject;
 GO
 
 USE BigDataProject;
 GO
-
 
 CREATE TABLE Staging_WorldBank (
     Country_Name NVARCHAR(255),
@@ -14,7 +16,6 @@ CREATE TABLE Staging_WorldBank (
     Value FLOAT
 );
 GO
-
 
 CREATE TABLE Staging_Kaggle (
     Country_Name NVARCHAR(255),
