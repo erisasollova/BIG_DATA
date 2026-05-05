@@ -1,224 +1,126 @@
-USE BigDataProject;
+USE BigDataProjectTEST;
 GO
 
--- =========================================
--- DEKLARIMI I XML
--- =========================================
-DECLARE @xml XML;
+/* =========================================================
+   VIEW 1 – Country Year Trend
+========================================================= */
+CREATE OR ALTER VIEW dbo.vw_CountryYearTrend
+AS
+SELECT 
+    dc.Country_Name,
+    dt.[Year],
+    AVG(f.Value) AS AvgValue
+FROM dbo.FactEconomicData f
+JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
+JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
+GROUP BY dc.Country_Name, dt.[Year];
+GO
 
--- =========================================
--- GJENERIMI I XML NGA DATA WAREHOUSE
--- =========================================
-SET @xml = (
+
+/* =========================================================
+   VIEW 2 – Indicator Trend
+========================================================= */
+CREATE OR ALTER VIEW dbo.vw_IndicatorTrend
+AS
+SELECT 
+    di.Indicator_Name,
+    dt.[Year],
+    AVG(f.Value) AS AvgValue
+FROM dbo.FactEconomicData f
+JOIN dbo.DimIndicator di ON f.IndicatorKey = di.IndicatorKey
+JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
+GROUP BY di.Indicator_Name, dt.[Year];
+GO
+
+
+/* =========================================================
+   VIEW 3 – WorldBank vs Kaggle Comparison
+========================================================= */
+CREATE OR ALTER VIEW dbo.vw_WorldBank_Kaggle_Comparison
+AS
+SELECT 
+    dc.Country_Name,
+    dt.[Year],
+    k.Category,
+    AVG(f.Value) AS WorldBankAvg,
+    AVG(k.Value) AS KaggleAvg
+FROM dbo.FactEconomicData f
+JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
+JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
+JOIN dbo.Staging_Kaggle k 
+    ON dc.Country_Name = k.Country_Name
+   AND dt.[Year] = k.[Year]
+GROUP BY dc.Country_Name, dt.[Year], k.Category;
+GO
+
+
+/* =========================================================
+   STORED PROCEDURE 1 – Country Trend
+========================================================= */
+CREATE OR ALTER PROCEDURE dbo.sp_GetCountryTrend
+    @Country NVARCHAR(255)
+AS
+BEGIN
     SELECT 
-        dc.Country_Name AS [country],
-        dt.[Year] AS [year],
-        di.Indicator_Name AS [indicator],
-        f.Value AS [value]
-    FROM FactEconomicData f
-    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
-    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
-    FOR XML PATH('record'), ROOT('economic_data'), TYPE
-);
+        dc.Country_Name,
+        dt.[Year],
+        AVG(f.Value) AS AvgValue
+    FROM dbo.FactEconomicData f
+    JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
+    JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
+    WHERE dc.Country_Name = @Country
+    GROUP BY dc.Country_Name, dt.[Year]
+    ORDER BY dt.[Year];
+END;
+GO
 
--- =========================================
--- SHFAQJA E XML
--- =========================================
-SELECT @xml AS Economic_Data;
 
--- =========================================
--- ✅ XPath 1 – Marrja e të gjitha shteteve
--- =========================================
--- =========================================
--- DEKLARIMI I XML
--- =========================================
-DECLARE @xml XML;
-
--- =========================================
--- GJENERIMI I XML NGA DATA WAREHOUSE
--- =========================================
-SET @xml = (
+/* =========================================================
+   STORED PROCEDURE 2 – Indicator Data
+========================================================= */
+CREATE OR ALTER PROCEDURE dbo.sp_GetIndicatorData
+    @Indicator NVARCHAR(255)
+AS
+BEGIN
     SELECT 
-        dc.Country_Name AS [country],
-        dt.[Year] AS [year],
-        di.Indicator_Name AS [indicator],
-        f.Value AS [value]
-    FROM FactEconomicData f
-    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
-    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
-    FOR XML PATH('record'), ROOT('economic_data'), TYPE
-);
+        di.Indicator_Name,
+        dc.Country_Name,
+        dt.[Year],
+        f.Value
+    FROM dbo.FactEconomicData f
+    JOIN dbo.DimIndicator di ON f.IndicatorKey = di.IndicatorKey
+    JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
+    JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
+    WHERE di.Indicator_Name = @Indicator
+    ORDER BY dc.Country_Name, dt.[Year];
+END;
+GO
 
 
-SELECT @xml.query('/economic_data/record/country') AS Countries;
+/* =========================================================
+   TEST QUERIES
+========================================================= */
 
--- =========================================
--- ✅ XPath 2 – Filtrimi për vitin 2023
--- =========================================
--- =========================================
--- DEKLARIMI I XML
--- =========================================
-DECLARE @xml XML;
-
--- =========================================
--- GJENERIMI I XML NGA DATA WAREHOUSE
--- =========================================
-SET @xml = (
-    SELECT 
-        dc.Country_Name AS [country],
-        dt.[Year] AS [year],
-        di.Indicator_Name AS [indicator],
-        f.Value AS [value]
-    FROM FactEconomicData f
-    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
-    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
-    FOR XML PATH('record'), ROOT('economic_data'), TYPE
-);
+SELECT TOP 20 * FROM dbo.vw_CountryYearTrend;
+SELECT TOP 20 * FROM dbo.vw_IndicatorTrend;
+SELECT TOP 20 * FROM dbo.vw_WorldBank_Kaggle_Comparison;
+GO
 
 
+/* =========================================================
+   TEST PROCEDURES
+========================================================= */
 
-SELECT @xml.query('/economic_data/record[year=2023]') AS Records_2023;
-
--- =========================================
--- ✅ XQuery 1 – Filtrim (si WHERE)
--- =========================================
--- =========================================
--- DEKLARIMI I XML
--- =========================================
-DECLARE @xml XML;
-
--- =========================================
--- GJENERIMI I XML NGA DATA WAREHOUSE
--- =========================================
-SET @xml = (
-    SELECT 
-        dc.Country_Name AS [country],
-        dt.[Year] AS [year],
-        di.Indicator_Name AS [indicator],
-        f.Value AS [value]
-    FROM FactEconomicData f
-    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
-    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
-    FOR XML PATH('record'), ROOT('economic_data'), TYPE
-);
+EXEC dbo.sp_GetCountryTrend 'Germany';
+EXEC dbo.sp_GetIndicatorData 'GDP growth';
+GO
 
 
+/* =========================================================
+   CHECK TABLES (DEBUG)
+========================================================= */
 
-
-SELECT @xml.query('
-for $x in /economic_data/record
-where $x/year = 2023
-return 
-<result>
-    {$x/country}
-    {$x/value}
-</result>
-') AS Filtered_2023;
-
--- =========================================
--- ✅ XQuery 2 – Transformim (strukturë e re)
--- =========================================
--- =========================================
--- DEKLARIMI I XML
--- =========================================
-DECLARE @xml XML;
-
--- =========================================
--- GJENERIMI I XML NGA DATA WAREHOUSE
--- =========================================
-SET @xml = (
-    SELECT 
-        dc.Country_Name AS [country],
-        dt.[Year] AS [year],
-        di.Indicator_Name AS [indicator],
-        f.Value AS [value]
-    FROM FactEconomicData f
-    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
-    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
-    FOR XML PATH('record'), ROOT('economic_data'), TYPE
-);
-
-
-
-SELECT @xml.query('
-for $x in /economic_data/record
-return 
-<country_data>
-    <name>{data($x/country)}</name>
-    <year>{data($x/year)}</year>
-</country_data>
-') AS Transformed_XML;
-
--- =========================================
--- ✅ XQuery 3 – merr vetëm indikatorët
--- =========================================
--- =========================================
--- DEKLARIMI I XML
--- =========================================
-DECLARE @xml XML;
-
--- =========================================
--- GJENERIMI I XML NGA DATA WAREHOUSE
--- =========================================
-SET @xml = (
-    SELECT 
-        dc.Country_Name AS [country],
-        dt.[Year] AS [year],
-        di.Indicator_Name AS [indicator],
-        f.Value AS [value]
-    FROM FactEconomicData f
-    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
-    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
-    FOR XML PATH('record'), ROOT('economic_data'), TYPE
-);
-
-
-
-SELECT @xml.query('
-for $x in /economic_data/record
-return 
-<indicator>
-    {data($x/indicator)}
-</indicator>
-') AS Indicators;
-
--- =========================================
--- ✅ BONUS – merr vetëm një shtet
--- =========================================
--- =========================================
--- DEKLARIMI I XML
--- =========================================
-DECLARE @xml XML;
-
--- =========================================
--- GJENERIMI I XML NGA DATA WAREHOUSE
--- =========================================
-SET @xml = (
-    SELECT 
-        dc.Country_Name AS [country],
-        dt.[Year] AS [year],
-        di.Indicator_Name AS [indicator],
-        f.Value AS [value]
-    FROM FactEconomicData f
-    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
-    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
-    FOR XML PATH('record'), ROOT('economic_data'), TYPE
-);
-
-
-SELECT @xml.query('
-for $x in /economic_data/record
-where $x/country = "Albania"
-return 
-<country_data>
-    {$x/year}
-    {$x/value}
-</country_data>
-') AS Albania_Data;
+SELECT * 
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME = 'Staging_Kaggle';
+GO
