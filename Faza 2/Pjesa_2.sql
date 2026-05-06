@@ -1,126 +1,134 @@
-USE BigDataProjectTEST;
+USE BigDataProject;
 GO
 
-/* =========================================================
-   VIEW 1 – Country Year Trend
-========================================================= */
-CREATE OR ALTER VIEW dbo.vw_CountryYearTrend
-AS
-SELECT 
-    dc.Country_Name,
-    dt.[Year],
-    AVG(f.Value) AS AvgValue
-FROM dbo.FactEconomicData f
-JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
-JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
-GROUP BY dc.Country_Name, dt.[Year];
-GO
+-- =========================================
+-- KRIJIMI I XML VARIABLËS
+-- =========================================
+DECLARE @xml XML;
+-- Këtu krijohet një “kuti” (variable) ku do ruhet XML-i që e gjenerojmë nga SQL
 
-
-/* =========================================================
-   VIEW 2 – Indicator Trend
-========================================================= */
-CREATE OR ALTER VIEW dbo.vw_IndicatorTrend
-AS
-SELECT 
-    di.Indicator_Name,
-    dt.[Year],
-    AVG(f.Value) AS AvgValue
-FROM dbo.FactEconomicData f
-JOIN dbo.DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
-GROUP BY di.Indicator_Name, dt.[Year];
-GO
-
-
-/* =========================================================
-   VIEW 3 – WorldBank vs Kaggle Comparison
-========================================================= */
-CREATE OR ALTER VIEW dbo.vw_WorldBank_Kaggle_Comparison
-AS
-SELECT 
-    dc.Country_Name,
-    dt.[Year],
-    k.Category,
-    AVG(f.Value) AS WorldBankAvg,
-    AVG(k.Value) AS KaggleAvg
-FROM dbo.FactEconomicData f
-JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
-JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
-JOIN dbo.Staging_Kaggle k 
-    ON dc.Country_Name = k.Country_Name
-   AND dt.[Year] = k.[Year]
-GROUP BY dc.Country_Name, dt.[Year], k.Category;
-GO
-
-
-/* =========================================================
-   STORED PROCEDURE 1 – Country Trend
-========================================================= */
-CREATE OR ALTER PROCEDURE dbo.sp_GetCountryTrend
-    @Country NVARCHAR(255)
-AS
-BEGIN
+-- =========================================
+-- KONVERTIMI NGA DATA WAREHOUSE NË XML
+-- =========================================
+SET @xml = (
     SELECT 
-        dc.Country_Name,
-        dt.[Year],
-        AVG(f.Value) AS AvgValue
-    FROM dbo.FactEconomicData f
-    JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
-    JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
-    WHERE dc.Country_Name = @Country
-    GROUP BY dc.Country_Name, dt.[Year]
-    ORDER BY dt.[Year];
-END;
-GO
+        dc.Country_Name AS [country],
+        -- marrim emrin e shtetit dhe e kthejmë në tag XML <country>
 
+        dt.[Year] AS [year],
+        -- marrim vitin dhe e kthejmë në <year>
 
-/* =========================================================
-   STORED PROCEDURE 2 – Indicator Data
-========================================================= */
-CREATE OR ALTER PROCEDURE dbo.sp_GetIndicatorData
-    @Indicator NVARCHAR(255)
-AS
-BEGIN
-    SELECT 
-        di.Indicator_Name,
-        dc.Country_Name,
-        dt.[Year],
-        f.Value
-    FROM dbo.FactEconomicData f
-    JOIN dbo.DimIndicator di ON f.IndicatorKey = di.IndicatorKey
-    JOIN dbo.DimCountry dc ON f.CountryKey = dc.CountryKey
-    JOIN dbo.DimTime dt ON f.TimeKey = dt.TimeKey
-    WHERE di.Indicator_Name = @Indicator
-    ORDER BY dc.Country_Name, dt.[Year];
-END;
-GO
+        di.Indicator_Name AS [indicator],
+        -- marrim indikatorin ekonomik (GDP, inflacion, etj.)
 
+        f.Value AS [value]
+        -- marrim vlerën numerike nga fact table
 
-/* =========================================================
-   TEST QUERIES
-========================================================= */
+    FROM FactEconomicData f
+    -- tabela kryesore ku ruhen të dhënat numerike
 
-SELECT TOP 20 * FROM dbo.vw_CountryYearTrend;
-SELECT TOP 20 * FROM dbo.vw_IndicatorTrend;
-SELECT TOP 20 * FROM dbo.vw_WorldBank_Kaggle_Comparison;
-GO
+    INNER JOIN DimCountry dc ON f.CountryKey = dc.CountryKey
+    -- lidh faktin me shtetin (dimensioni Country)
 
+    INNER JOIN DimIndicator di ON f.IndicatorKey = di.IndicatorKey
+    -- lidh faktin me indikatorin ekonomik
 
-/* =========================================================
-   TEST PROCEDURES
-========================================================= */
+    INNER JOIN DimTime dt ON f.TimeKey = dt.TimeKey
+    -- lidh faktin me kohën (vitet)
 
-EXEC dbo.sp_GetCountryTrend 'Germany';
-EXEC dbo.sp_GetIndicatorData 'GDP growth';
-GO
+    FOR XML PATH('record'), ROOT('economic_data'), TYPE
+    -- çdo rresht bëhet <record>
+    -- të gjitha record-et futen brenda <economic_data>
+    -- TYPE e mban si XML real (jo tekst)
+);
 
+-- =========================================
+-- SHFAQJA E XML-it TË GJENERUAR
+-- =========================================
+SELECT @xml AS Economic_Data;
+-- këtu shohim komplet XML-in që u krijua
 
-/* =========================================================
-   CHECK TABLES (DEBUG)
-========================================================= */
+-- =========================================
+-- XPATH 1 – MARRJA E SHTETEVE
+-- =========================================
+SELECT @xml.query('/economic_data/record/country') AS Countries;
+-- shkon në XML dhe merr vetëm tag-un <country>
+-- pra listë e shteteve
 
-SELECT * 
-FROM INFORMATION_SCHEMA.TABLES
-WHERE TABLE_NAME = 'Staging_Kaggle';
-GO
+-- =========================================
+-- XPATH 2 – FILTRIM SIPAS VITIT 2023
+-- =========================================
+SELECT @xml.query('/economic_data/record[year=2023]') AS Records_2023;
+-- merr vetëm record-et ku viti është 2023
+-- si WHERE në SQL
+
+-- =========================================
+-- XQUERY 1 – FILTRIM (si WHERE)
+-- =========================================
+SELECT @xml.query('
+for $x in /economic_data/record
+-- kalon në çdo record një nga një
+
+where $x/year = 2023
+-- merr vetëm ato që janë të vitit 2023
+
+return 
+<result>
+    {$x/country}
+    -- shfaq shtetin
+
+    {$x/value}
+    -- shfaq vlerën
+</result>
+') AS Filtered_2023;
+
+-- =========================================
+-- XQUERY 2 – TRANSFORMIM I STRUKTURËS
+-- =========================================
+SELECT @xml.query('
+for $x in /economic_data/record
+-- kalon në çdo record
+
+return 
+<country_data>
+    <name>{data($x/country)}</name>
+    -- merr tekstin e country dhe e ndryshon emrin në "name"
+
+    <year>{data($x/year)}</year>
+    -- merr vitin si tekst të thjeshtë
+</country_data>
+') AS Transformed_XML;
+
+-- =========================================
+-- XQUERY 3 – NXJERRJA E INDIKATORËVE
+-- =========================================
+SELECT @xml.query('
+for $x in /economic_data/record
+-- kalon në çdo record
+
+return 
+<indicator>
+    {data($x/indicator)}
+    -- merr vetëm emrin e indikatorit
+</indicator>
+') AS Indicators;
+
+-- =========================================
+-- BONUS – FILTRIM PËR NJË SHTET SPECIFIK
+-- =========================================
+SELECT @xml.query('
+for $x in /economic_data/record
+-- kalon në çdo record
+
+where $x/country = "Albania"
+-- merr vetëm Shqipërinë
+
+return 
+<country_data>
+    {$x/year}
+    -- shfaq vitin
+
+    {$x/value}
+    -- shfaq vlerën
+</country_data>
+') AS Albania_Data;
